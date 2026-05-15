@@ -230,3 +230,16 @@ func (s *OpsService) UpdateAlertEventEmailSent(ctx context.Context, eventID int6
 	}
 	return s.opsRepo.UpdateAlertEventEmailSent(ctx, eventID, emailSent)
 }
+
+func (s *OpsService) UpdateAlertEventTelegramSent(ctx context.Context, eventID int64, telegramSent bool) error {
+	if err := s.RequireMonitoringEnabled(ctx); err != nil {
+		return err
+	}
+	if s.opsRepo == nil {
+		return infraerrors.ServiceUnavailable("OPS_REPO_UNAVAILABLE", "Ops repository not available")
+	}
+	if eventID <= 0 {
+		return infraerrors.BadRequest("INVALID_EVENT_ID", "invalid event id")
+	}
+	return s.opsRepo.UpdateAlertEventTelegramSent(ctx, eventID, telegramSent)
+}

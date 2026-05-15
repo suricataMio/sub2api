@@ -56,6 +56,52 @@ func (h *OpsHandler) UpdateEmailNotificationConfig(c *gin.Context) {
 	response.Success(c, updated)
 }
 
+// GetTelegramNotificationConfig 返回 Telegram 机器人告警通知配置（DB 持久化）。
+// GET /api/v1/admin/ops/telegram-notification/config
+func (h *OpsHandler) GetTelegramNotificationConfig(c *gin.Context) {
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	if err := h.opsService.RequireMonitoringEnabled(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	cfg, err := h.opsService.GetTelegramNotificationConfig(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "Failed to get telegram notification config")
+		return
+	}
+	response.Success(c, cfg)
+}
+
+// UpdateTelegramNotificationConfig 更新 Telegram 机器人告警通知配置（DB 持久化）。
+// PUT /api/v1/admin/ops/telegram-notification/config
+func (h *OpsHandler) UpdateTelegramNotificationConfig(c *gin.Context) {
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	if err := h.opsService.RequireMonitoringEnabled(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	var req service.OpsTelegramNotificationConfigUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	updated, err := h.opsService.UpdateTelegramNotificationConfig(c.Request.Context(), &req)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	response.Success(c, updated)
+}
+
 // GetAlertRuntimeSettings returns Ops alert evaluator runtime settings (DB-backed).
 // GET /api/v1/admin/ops/runtime/alert
 func (h *OpsHandler) GetAlertRuntimeSettings(c *gin.Context) {

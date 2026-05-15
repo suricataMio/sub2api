@@ -38,6 +38,32 @@ type OpsEmailNotificationConfigUpdateRequest struct {
 	Report *OpsEmailReportConfig `json:"report"`
 }
 
+// =========================
+// Telegram 通知配置
+// =========================
+
+// OpsTelegramNotificationConfig 存储 Telegram 机器人告警通知配置（持久化到 DB settings 表）。
+type OpsTelegramNotificationConfig struct {
+	Enabled          bool     `json:"enabled"`
+	BotToken         string   `json:"bot_token"`
+	ChatIDs          []string `json:"chat_ids"`
+	MinSeverity      string   `json:"min_severity"`
+	RateLimitPerHour int      `json:"rate_limit_per_hour"`
+	// HealthScoreThreshold：健康分数低于此值时触发告警（0 表示禁用该独立检测）
+	HealthScoreThreshold int `json:"health_score_threshold"`
+}
+
+// OpsTelegramNotificationConfigUpdateRequest 用于前端/API 更新 TG 配置。
+type OpsTelegramNotificationConfigUpdateRequest struct {
+	Enabled          *bool    `json:"enabled"`
+	BotToken         *string  `json:"bot_token"`
+	ChatIDs          []string `json:"chat_ids"`
+	MinSeverity      *string  `json:"min_severity"`
+	RateLimitPerHour *int     `json:"rate_limit_per_hour"`
+	// HealthScoreThreshold：健康分数低于此值时触发告警（0 或负数表示禁用）
+	HealthScoreThreshold *int `json:"health_score_threshold"`
+}
+
 type OpsDistributedLockSettings struct {
 	Enabled    bool   `json:"enabled"`
 	Key        string `json:"key"`

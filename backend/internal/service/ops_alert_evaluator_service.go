@@ -32,9 +32,10 @@ return 0
 `)
 
 type OpsAlertEvaluatorService struct {
-	opsService   *OpsService
-	opsRepo      OpsRepository
-	emailService *EmailService
+	opsService      *OpsService
+	opsRepo         OpsRepository
+	emailService    *EmailService
+	telegramService *TelegramService
 
 	redisClient *redis.Client
 	cfg         *config.Config
@@ -48,7 +49,8 @@ type OpsAlertEvaluatorService struct {
 	mu         sync.Mutex
 	ruleStates map[int64]*opsAlertRuleState
 
-	emailLimiter *slidingWindowLimiter
+	emailLimiter    *slidingWindowLimiter
+	telegramLimiter *slidingWindowLimiter
 
 	skipLogMu sync.Mutex
 	skipLogAt time.Time
@@ -65,18 +67,21 @@ func NewOpsAlertEvaluatorService(
 	opsService *OpsService,
 	opsRepo OpsRepository,
 	emailService *EmailService,
+	telegramService *TelegramService,
 	redisClient *redis.Client,
 	cfg *config.Config,
 ) *OpsAlertEvaluatorService {
 	return &OpsAlertEvaluatorService{
-		opsService:   opsService,
-		opsRepo:      opsRepo,
-		emailService: emailService,
-		redisClient:  redisClient,
-		cfg:          cfg,
-		instanceID:   uuid.NewString(),
-		ruleStates:   map[int64]*opsAlertRuleState{},
-		emailLimiter: newSlidingWindowLimiter(0, time.Hour),
+		opsService:      opsService,
+		opsRepo:         opsRepo,
+		emailService:    emailService,
+		telegramService: telegramService,
+		redisClient:     redisClient,
+		cfg:             cfg,
+		instanceID:      uuid.NewString(),
+		ruleStates:      map[int64]*opsAlertRuleState{},
+		emailLimiter:    newSlidingWindowLimiter(0, time.Hour),
+		telegramLimiter: newSlidingWindowLimiter(0, time.Hour),
 	}
 }
 
@@ -196,6 +201,7 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 	eventsCreated := 0
 	eventsResolved := 0
 	emailsSent := 0
+	tgSent := 0
 
 	now := time.Now().UTC()
 	safeEnd := now.Truncate(time.Minute)
@@ -292,6 +298,9 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 				if s.maybeSendAlertEmail(ctx, runtimeCfg, rule, created) {
 					emailsSent++
 				}
+				if s.maybeSendTelegramAlert(ctx, rule, created) {
+					tgSent++
+				}
 			}
 			continue
 		}
@@ -307,7 +316,7 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 		}
 	}
 
-	result := truncateString(fmt.Sprintf("rules=%d enabled=%d evaluated=%d created=%d resolved=%d emails_sent=%d", rulesTotal, rulesEnabled, rulesEvaluated, eventsCreated, eventsResolved, emailsSent), 2048)
+	result := truncateString(fmt.Sprintf("rules=%d enabled=%d evaluated=%d created=%d resolved=%d emails_sent=%d tg_sent=%d", rulesTotal, rulesEnabled, rulesEvaluated, eventsCreated, eventsResolved, emailsSent, tgSent), 2048)
 	s.recordHeartbeatSuccess(runAt, time.Since(startedAt), result)
 }
 
@@ -565,6 +574,10 @@ func (s *OpsAlertEvaluatorService) computeRuleMetric(
 	}
 
 	switch strings.TrimSpace(rule.MetricType) {
+	case "health_score":
+		// 计算综合健康分数（0-100），低于阈值时告警
+		overview.HealthScore = computeDashboardHealthScore(time.Now().UTC(), overview)
+		return float64(overview.HealthScore), true
 	case "success_rate":
 		if overview.RequestCountSLA <= 0 {
 			return 0, false
@@ -697,6 +710,89 @@ func (s *OpsAlertEvaluatorService) maybeSendAlertEmail(ctx context.Context, runt
 		_ = s.opsRepo.UpdateAlertEventEmailSent(context.Background(), event.ID, true)
 	}
 	return anySent
+}
+
+func (s *OpsAlertEvaluatorService) maybeSendTelegramAlert(ctx context.Context, rule *OpsAlertRule, event *OpsAlertEvent) bool {
+	if s == nil || s.telegramService == nil || s.opsService == nil || event == nil || rule == nil {
+		return false
+	}
+	if event.TelegramSent {
+		return false
+	}
+	if !rule.NotifyTelegram {
+		return false
+	}
+
+	tgCfg, err := s.opsService.GetTelegramNotificationConfig(ctx)
+	if err != nil || tgCfg == nil || !tgCfg.Enabled {
+		return false
+	}
+	if strings.TrimSpace(tgCfg.BotToken) == "" || len(tgCfg.ChatIDs) == 0 {
+		return false
+	}
+	if !shouldSendOpsAlertEmailByMinSeverity(strings.TrimSpace(tgCfg.MinSeverity), strings.TrimSpace(rule.Severity)) {
+		return false
+	}
+
+	s.telegramLimiter.SetLimit(tgCfg.RateLimitPerHour)
+
+	text := buildOpsAlertTelegramText(rule, event)
+	anySent := false
+	for _, chatID := range tgCfg.ChatIDs {
+		cid := strings.TrimSpace(chatID)
+		if cid == "" {
+			continue
+		}
+		if !s.telegramLimiter.Allow(time.Now().UTC()) {
+			continue
+		}
+		sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err := s.telegramService.SendMessage(sendCtx, tgCfg.BotToken, cid, text)
+		cancel()
+		if err != nil {
+			logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] send telegram alert failed (chat=%s): %v", cid, err)
+			continue
+		}
+		anySent = true
+	}
+
+	if anySent {
+		_ = s.opsRepo.UpdateAlertEventTelegramSent(context.Background(), event.ID, true)
+	}
+	return anySent
+}
+
+func buildOpsAlertTelegramText(rule *OpsAlertRule, event *OpsAlertEvent) string {
+	if rule == nil || event == nil {
+		return ""
+	}
+	metric := strings.TrimSpace(rule.MetricType)
+	value := "-"
+	threshold := fmt.Sprintf("%.2f", rule.Threshold)
+	if event.MetricValue != nil {
+		value = fmt.Sprintf("%.2f", *event.MetricValue)
+	}
+	if event.ThresholdValue != nil {
+		threshold = fmt.Sprintf("%.2f", *event.ThresholdValue)
+	}
+	return fmt.Sprintf(
+		"🚨 <b>Ops Alert</b>\n"+
+			"<b>规则</b>: %s\n"+
+			"<b>严重度</b>: %s\n"+
+			"<b>状态</b>: %s\n"+
+			"<b>指标</b>: %s %s %s（当前值 %s）\n"+
+			"<b>触发时间</b>: %s\n"+
+			"<b>描述</b>: %s",
+		htmlEscape(rule.Name),
+		htmlEscape(rule.Severity),
+		htmlEscape(event.Status),
+		htmlEscape(metric),
+		htmlEscape(rule.Operator),
+		htmlEscape(threshold),
+		htmlEscape(value),
+		event.FiredAt.Format("2006-01-02 15:04:05 UTC"),
+		htmlEscape(event.Description),
+	)
 }
 
 func buildOpsAlertEmailBody(rule *OpsAlertRule, event *OpsAlertEvent) string {

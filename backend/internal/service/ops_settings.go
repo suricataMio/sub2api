@@ -193,6 +193,131 @@ func validateOpsEmailNotificationConfig(cfg *OpsEmailNotificationConfig) error {
 }
 
 // =========================
+// Telegram 通知配置
+// =========================
+
+func (s *OpsService) GetTelegramNotificationConfig(ctx context.Context) (*OpsTelegramNotificationConfig, error) {
+	defaultCfg := defaultOpsTelegramNotificationConfig()
+	if s == nil || s.settingRepo == nil {
+		return defaultCfg, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyOpsTelegramNotificationConfig)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			if b, mErr := json.Marshal(defaultCfg); mErr == nil {
+				_ = s.settingRepo.Set(ctx, SettingKeyOpsTelegramNotificationConfig, string(b))
+			}
+			return defaultCfg, nil
+		}
+		return nil, err
+	}
+
+	cfg := &OpsTelegramNotificationConfig{}
+	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
+		return defaultCfg, nil
+	}
+	normalizeOpsTelegramNotificationConfig(cfg)
+	return cfg, nil
+}
+
+func (s *OpsService) UpdateTelegramNotificationConfig(ctx context.Context, req *OpsTelegramNotificationConfigUpdateRequest) (*OpsTelegramNotificationConfig, error) {
+	if s == nil || s.settingRepo == nil {
+		return nil, errors.New("setting repository not initialized")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if req == nil {
+		return nil, errors.New("invalid request")
+	}
+
+	cfg, err := s.GetTelegramNotificationConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Enabled != nil {
+		cfg.Enabled = *req.Enabled
+	}
+	if req.BotToken != nil {
+		cfg.BotToken = strings.TrimSpace(*req.BotToken)
+	}
+	if req.ChatIDs != nil {
+		cfg.ChatIDs = req.ChatIDs
+	}
+	if req.MinSeverity != nil {
+		cfg.MinSeverity = strings.TrimSpace(*req.MinSeverity)
+	}
+	if req.RateLimitPerHour != nil {
+		cfg.RateLimitPerHour = *req.RateLimitPerHour
+	}
+	if req.HealthScoreThreshold != nil {
+		cfg.HealthScoreThreshold = *req.HealthScoreThreshold
+	}
+
+	if err := validateOpsTelegramNotificationConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	normalizeOpsTelegramNotificationConfig(cfg)
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.settingRepo.Set(ctx, SettingKeyOpsTelegramNotificationConfig, string(raw)); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func defaultOpsTelegramNotificationConfig() *OpsTelegramNotificationConfig {
+	return &OpsTelegramNotificationConfig{
+		Enabled:              false,
+		BotToken:             "",
+		ChatIDs:              []string{},
+		MinSeverity:          "",
+		RateLimitPerHour:     0,
+		HealthScoreThreshold: 0,
+	}
+}
+
+func normalizeOpsTelegramNotificationConfig(cfg *OpsTelegramNotificationConfig) {
+	if cfg == nil {
+		return
+	}
+	if cfg.ChatIDs == nil {
+		cfg.ChatIDs = []string{}
+	}
+	cfg.BotToken = strings.TrimSpace(cfg.BotToken)
+	cfg.MinSeverity = strings.TrimSpace(cfg.MinSeverity)
+	if cfg.HealthScoreThreshold < 0 {
+		cfg.HealthScoreThreshold = 0
+	}
+}
+
+func validateOpsTelegramNotificationConfig(cfg *OpsTelegramNotificationConfig) error {
+	if cfg == nil {
+		return errors.New("invalid config")
+	}
+	if cfg.RateLimitPerHour < 0 {
+		return errors.New("rate_limit_per_hour must be >= 0")
+	}
+	switch strings.TrimSpace(cfg.MinSeverity) {
+	case "", "critical", "warning", "info":
+	default:
+		return errors.New("min_severity must be one of: critical, warning, info, or empty")
+	}
+	if cfg.HealthScoreThreshold < 0 || cfg.HealthScoreThreshold > 100 {
+		return errors.New("health_score_threshold must be between 0 and 100")
+	}
+	return nil
+}
+
+// =========================
 // Alert runtime settings
 // =========================
 

@@ -256,15 +256,21 @@ func ProvideOpsAggregationService(
 	return svc
 }
 
+// ProvideTelegramService 创建 TelegramService 实例。
+func ProvideTelegramService() *TelegramService {
+	return NewTelegramService()
+}
+
 // ProvideOpsAlertEvaluatorService creates and starts OpsAlertEvaluatorService.
 func ProvideOpsAlertEvaluatorService(
 	opsService *OpsService,
 	opsRepo OpsRepository,
 	emailService *EmailService,
+	telegramService *TelegramService,
 	redisClient *redis.Client,
 	cfg *config.Config,
 ) *OpsAlertEvaluatorService {
-	svc := NewOpsAlertEvaluatorService(opsService, opsRepo, emailService, redisClient, cfg)
+	svc := NewOpsAlertEvaluatorService(opsService, opsRepo, emailService, telegramService, redisClient, cfg)
 	svc.Start()
 	return svc
 }
@@ -474,6 +480,7 @@ var ProviderSet = wire.NewSet(
 	NewOpsService,
 	ProvideOpsMetricsCollector,
 	ProvideOpsAggregationService,
+	ProvideTelegramService,
 	ProvideOpsAlertEvaluatorService,
 	ProvideOpsCleanupService,
 	ProvideOpsScheduledReportService,

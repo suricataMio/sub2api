@@ -29,7 +29,8 @@ type OpsAlertRule struct {
 	SustainedMinutes int `json:"sustained_minutes"`
 	CooldownMinutes  int `json:"cooldown_minutes"`
 
-	NotifyEmail bool `json:"notify_email"`
+	NotifyEmail    bool `json:"notify_email"`
+	NotifyTelegram bool `json:"notify_telegram"`
 
 	Filters map[string]any `json:"filters,omitempty"`
 
@@ -55,7 +56,8 @@ type OpsAlertEvent struct {
 	FiredAt    time.Time  `json:"fired_at"`
 	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
 
-	EmailSent bool      `json:"email_sent"`
+	EmailSent    bool `json:"email_sent"`
+	TelegramSent bool `json:"telegram_sent"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

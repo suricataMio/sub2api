@@ -279,6 +279,9 @@ const (
 	// SettingKeyOpsEmailNotificationConfig stores JSON config for ops email notifications.
 	SettingKeyOpsEmailNotificationConfig = "ops_email_notification_config"
 
+	// SettingKeyOpsTelegramNotificationConfig 存储 Telegram 机器人告警通知的 JSON 配置。
+	SettingKeyOpsTelegramNotificationConfig = "ops_telegram_notification_config"
+
 	// SettingKeyOpsAlertRuntimeSettings stores JSON config for ops alert evaluator runtime settings.
 	SettingKeyOpsAlertRuntimeSettings = "ops_alert_runtime_settings"
 
