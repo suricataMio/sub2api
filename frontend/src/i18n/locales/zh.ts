@@ -2950,6 +2950,7 @@ export default {
         expiresAt: '过期时间',
         actions: '操作'
       },
+      allPlanTypes: '全部套餐',
       allPrivacyModes: '全部Privacy状态',
       privacyUnset: '未设置',
       privacyTrainingOff: '已关闭训练数据共享',

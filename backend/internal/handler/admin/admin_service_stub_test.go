@@ -40,6 +40,7 @@ type stubAdminService struct {
 		search      string
 		groupID     int64
 		privacyMode string
+		planType    string
 		sortBy      string
 		sortOrder   string
 		calls       int
@@ -299,13 +300,14 @@ func (s *stubAdminService) BatchSetGroupRPMOverrides(_ context.Context, _ int64,
 	return nil
 }
 
-func (s *stubAdminService) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]service.Account, int64, error) {
+func (s *stubAdminService) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, search string, groupID int64, privacyMode, planType string, sortBy, sortOrder string) ([]service.Account, int64, error) {
 	s.lastListAccounts.platform = platform
 	s.lastListAccounts.accountType = accountType
 	s.lastListAccounts.status = status
 	s.lastListAccounts.search = search
 	s.lastListAccounts.groupID = groupID
 	s.lastListAccounts.privacyMode = privacyMode
+	s.lastListAccounts.planType = planType
 	s.lastListAccounts.sortBy = sortBy
 	s.lastListAccounts.sortOrder = sortOrder
 	s.lastListAccounts.calls++

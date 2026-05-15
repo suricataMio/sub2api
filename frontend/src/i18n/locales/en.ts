@@ -2912,6 +2912,7 @@ export default {
         expiresAt: 'Expires At',
         actions: 'Actions'
       },
+      allPlanTypes: 'All Plans',
       allPrivacyModes: 'All Privacy States',
       privacyUnset: 'Unset',
       privacyTrainingOff: 'Training data sharing disabled',

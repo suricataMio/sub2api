@@ -725,6 +725,7 @@ const {
     platform: '',
     type: '',
     status: '',
+    plan_type: '',
     privacy_mode: '',
     group: '',
     search: '',

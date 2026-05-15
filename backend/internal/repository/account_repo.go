@@ -460,7 +460,7 @@ func (r *accountRepository) List(ctx context.Context, params pagination.Paginati
 	return r.ListWithFilters(ctx, params, "", "", "", "", 0, "")
 }
 
-func (r *accountRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]service.Account, *pagination.PaginationResult, error) {
+func (r *accountRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode, planType string) ([]service.Account, *pagination.PaginationResult, error) {
 	q := r.client.Account.Query()
 
 	if platform != "" {
@@ -550,6 +550,12 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 			default:
 				s.Where(sqljson.ValueEQ(dbaccount.FieldExtra, privacyMode, path))
 			}
+		}))
+	}
+	// 按套餐类型过滤（credentials.plan_type，如 free/plus/pro）
+	if planType != "" {
+		q = q.Where(dbpredicate.Account(func(s *entsql.Selector) {
+			s.Where(sqljson.ValueEQ(dbaccount.FieldCredentials, strings.ToLower(planType), sqljson.Path("plan_type")))
 		}))
 	}
 

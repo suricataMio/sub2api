@@ -10,6 +10,7 @@
     <Select :model-value="filters.platform" class="w-40" :options="pOpts" @update:model-value="updatePlatform" @change="$emit('change')" />
     <Select :model-value="filters.type" class="w-40" :options="tOpts" @update:model-value="updateType" @change="$emit('change')" />
     <Select :model-value="filters.status" class="w-40" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
+    <Select :model-value="filters.plan_type" class="w-40" :options="planTypeOpts" @update:model-value="updatePlanType" @change="$emit('change')" />
     <Select :model-value="filters.privacy_mode" class="w-40" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
     <Select :model-value="filters.group" class="w-40" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
   </div>
@@ -23,6 +24,7 @@ const emit = defineEmits(['update:searchQuery', 'update:filters', 'change']); co
 const updatePlatform = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, platform: value }) }
 const updateType = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, type: value }) }
 const updateStatus = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, status: value }) }
+const updatePlanType = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, plan_type: value }) }
 const updatePrivacyMode = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, privacy_mode: value }) }
 const updateGroup = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, group: value }) }
 const pOpts = computed(() => [{ value: '', label: t('admin.accounts.allPlatforms') }, { value: 'anthropic', label: 'Anthropic' }, { value: 'openai', label: 'OpenAI' }, { value: 'gemini', label: 'Gemini' }, { value: 'antigravity', label: 'Antigravity' }])
@@ -34,6 +36,12 @@ const privacyOpts = computed(() => [
   { value: 'training_off', label: 'Privacy' },
   { value: 'training_set_cf_blocked', label: 'CF' },
   { value: 'training_set_failed', label: 'Fail' }
+])
+const planTypeOpts = computed(() => [
+  { value: '', label: t('admin.accounts.allPlanTypes') },
+  { value: 'free', label: 'Free' },
+  { value: 'plus', label: 'Plus' },
+  { value: 'pro', label: 'Pro' },
 ])
 const gOpts = computed(() => [
   { value: '', label: t('admin.accounts.allGroups') },
