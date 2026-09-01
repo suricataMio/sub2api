@@ -392,15 +392,27 @@
                 <Icon name="calendar" size="sm" />
                 <span class="text-xs">{{ t('admin.subscriptions.adjust') }}</span>
               </button>
-              <button
-                v-if="row.status === 'active'"
-                @click="handleResetQuota(row)"
-                :disabled="resettingQuota && resettingSubscription?.id === row.id"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Icon name="refresh" size="sm" />
-                <span class="text-xs">{{ t('admin.subscriptions.resetQuota') }}</span>
-              </button>
+              <div v-if="row.status === 'active'" class="relative">
+                <button
+                  @click="toggleResetQuotaMenu(row.id)"
+                  :disabled="resettingQuota && resettingSubscription?.id === row.id"
+                  :aria-expanded="resetQuotaMenuSubscriptionId === row.id"
+                  class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span class="flex items-center gap-0.5"><Icon name="refresh" size="sm" /><Icon name="chevronDown" size="xs" /></span>
+                  <span class="text-xs">{{ t('admin.subscriptions.resetQuota') }}</span>
+                </button>
+                <div
+                  v-if="resetQuotaMenuSubscriptionId === row.id"
+                  class="absolute right-0 z-30 mt-1 w-28 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-700 dark:bg-dark-800"
+                >
+                  <button type="button" class="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-200 dark:hover:bg-orange-900/20 dark:hover:text-orange-300" @click="handleResetQuota(row, { daily: true, weekly: false, monthly: false })">{{ t('admin.subscriptions.resetDaily') }}</button>
+                  <button type="button" class="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-200 dark:hover:bg-orange-900/20 dark:hover:text-orange-300" @click="handleResetQuota(row, { daily: false, weekly: true, monthly: false })">{{ t('admin.subscriptions.resetWeekly') }}</button>
+                  <button type="button" class="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-orange-50 hover:text-orange-700 dark:text-gray-200 dark:hover:bg-orange-900/20 dark:hover:text-orange-300" @click="handleResetQuota(row, { daily: false, weekly: false, monthly: true })">{{ t('admin.subscriptions.resetMonthly') }}</button>
+                  <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
+                  <button type="button" class="w-full px-3 py-2 text-left text-xs font-medium text-orange-700 hover:bg-orange-50 dark:text-orange-300 dark:hover:bg-orange-900/20" @click="handleResetQuota(row, { daily: true, weekly: true, monthly: true })">{{ t('admin.subscriptions.resetAll') }}</button>
+                </div>
+              </div>
               <button
                 v-if="row.status === 'active'"
                 @click="handleRevoke(row)"
@@ -673,7 +685,7 @@
     <ConfirmDialog
       :show="showResetQuotaConfirm"
       :title="t('admin.subscriptions.resetQuotaTitle')"
-      :message="t('admin.subscriptions.resetQuotaConfirm', { user: resettingSubscription?.user?.email })"
+      :message="t('admin.subscriptions.resetQuotaConfirmSelected', { user: resettingSubscription?.user?.email, window: resetQuotaWindowLabel })"
       :confirm-text="t('admin.subscriptions.resetQuota')"
       :cancel-text="t('common.cancel')"
       @confirm="confirmResetQuota"
@@ -975,6 +987,16 @@ const showResetQuotaConfirm = ref(false)
 const submitting = ref(false)
 const resettingSubscription = ref<UserSubscription | null>(null)
 const resettingQuota = ref(false)
+const resetQuotaMenuSubscriptionId = ref<number | null>(null)
+const resetQuotaOptions = ref({ daily: true, weekly: true, monthly: true })
+
+const resetQuotaWindowLabel = computed(() => {
+  const { daily, weekly, monthly } = resetQuotaOptions.value
+  if (daily && weekly && monthly) return t('admin.subscriptions.resetAllWindows')
+  if (daily) return t('admin.subscriptions.daily')
+  if (weekly) return t('admin.subscriptions.weekly')
+  return t('admin.subscriptions.monthly')
+})
 const extendingSubscription = ref<UserSubscription | null>(null)
 const revokingSubscription = ref<UserSubscription | null>(null)
 const restoringSubscription = ref<UserSubscription | null>(null)
@@ -1310,8 +1332,17 @@ const confirmRestore = async () => {
   }
 }
 
-const handleResetQuota = (subscription: UserSubscription) => {
+const toggleResetQuotaMenu = (subscriptionId: number) => {
+  resetQuotaMenuSubscriptionId.value = resetQuotaMenuSubscriptionId.value === subscriptionId ? null : subscriptionId
+}
+
+const handleResetQuota = (
+  subscription: UserSubscription,
+  options: { daily: boolean; weekly: boolean; monthly: boolean }
+) => {
+  resetQuotaMenuSubscriptionId.value = null
   resettingSubscription.value = subscription
+  resetQuotaOptions.value = options
   showResetQuotaConfirm.value = true
 }
 
@@ -1320,7 +1351,7 @@ const confirmResetQuota = async () => {
   if (resettingQuota.value) return
   resettingQuota.value = true
   try {
-    await adminAPI.subscriptions.resetQuota(resettingSubscription.value.id, { daily: true, weekly: true, monthly: true })
+    await adminAPI.subscriptions.resetQuota(resettingSubscription.value.id, resetQuotaOptions.value)
     appStore.showSuccess(t('admin.subscriptions.quotaResetSuccess'))
     showResetQuotaConfirm.value = false
     resettingSubscription.value = null
