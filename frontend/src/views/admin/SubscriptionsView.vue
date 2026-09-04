@@ -658,6 +658,10 @@
         <p class="text-sm text-gray-600 dark:text-gray-300">
           {{ t('admin.subscriptions.resetQuotaPickerHint') }}
         </p>
+        <label class="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+          <input v-model="notifyUserOnQuotaReset" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+          <span>{{ t('admin.subscriptions.notifyUserOnQuotaReset') }}</span>
+        </label>
         <div class="grid grid-cols-2 gap-3">
           <button type="button" class="btn btn-secondary justify-center" @click="chooseResetQuota({ daily: true, weekly: false, monthly: false })">{{ t('admin.subscriptions.resetDaily') }}</button>
           <button type="button" class="btn btn-secondary justify-center" @click="chooseResetQuota({ daily: false, weekly: true, monthly: false })">{{ t('admin.subscriptions.resetWeekly') }}</button>
@@ -1003,7 +1007,8 @@ const resettingSubscription = ref<UserSubscription | null>(null)
 const resettingQuota = ref(false)
 const showResetQuotaPicker = ref(false)
 const resetQuotaPickerSubscription = ref<UserSubscription | null>(null)
-const resetQuotaOptions = ref({ daily: true, weekly: true, monthly: true })
+const resetQuotaOptions = ref({ daily: true, weekly: true, monthly: true, notify_user: true })
+const notifyUserOnQuotaReset = ref(true)
 
 const resetQuotaWindowLabel = computed(() => {
   const { daily, weekly, monthly } = resetQuotaOptions.value
@@ -1349,6 +1354,7 @@ const confirmRestore = async () => {
 
 const openResetQuotaPicker = (subscription: UserSubscription) => {
   resetQuotaPickerSubscription.value = subscription
+  notifyUserOnQuotaReset.value = true
   showResetQuotaPicker.value = true
 }
 
@@ -1360,7 +1366,7 @@ const closeResetQuotaPicker = () => {
 const chooseResetQuota = (options: { daily: boolean; weekly: boolean; monthly: boolean }) => {
   if (!resetQuotaPickerSubscription.value) return
   resettingSubscription.value = resetQuotaPickerSubscription.value
-  resetQuotaOptions.value = options
+  resetQuotaOptions.value = { ...options, notify_user: notifyUserOnQuotaReset.value }
   closeResetQuotaPicker()
   showResetQuotaConfirm.value = true
 }

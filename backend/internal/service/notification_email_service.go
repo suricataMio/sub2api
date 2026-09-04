@@ -24,6 +24,7 @@ const (
 	NotificationEmailEventAuthPasswordReset           = "auth.password_reset"
 	NotificationEmailEventNotificationEmailVerifyCode = "notification_email.verify_code"
 	NotificationEmailEventSubscriptionPurchaseSuccess = "subscription.purchase_success"
+	NotificationEmailEventSubscriptionQuotaReset      = "subscription.quota_reset"
 	NotificationEmailEventSubscriptionExpiryReminder  = "subscription.expiry_reminder"
 	NotificationEmailEventBalanceLow                  = "balance.low"
 	NotificationEmailEventBalanceRechargeSuccess      = "balance.recharge_success"
@@ -954,6 +955,8 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 		"reset_url":           "https://example.com/reset-password?token=preview",
 		"subscription_group":  "Claude Pro",
 		"subscription_days":   "30",
+		"quota_reset_windows": "每日、每周",
+		"quota_reset_time":    "2026-09-04 12:00",
 		"expiry_time":         "2026-06-18 12:00",
 		"days_remaining":      "3",
 		"current_balance":     "12.34",
@@ -1025,6 +1028,7 @@ var notificationEmailEventOrder = []string{
 	NotificationEmailEventAuthPasswordReset,
 	NotificationEmailEventNotificationEmailVerifyCode,
 	NotificationEmailEventSubscriptionPurchaseSuccess,
+	NotificationEmailEventSubscriptionQuotaReset,
 	NotificationEmailEventSubscriptionExpiryReminder,
 	NotificationEmailEventBalanceLow,
 	NotificationEmailEventBalanceRechargeSuccess,
@@ -1068,6 +1072,14 @@ var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
 		Category:     "subscription",
 		Optional:     false,
 		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...), "subscription_group", "subscription_days", "expiry_time", "order_id"),
+	},
+	NotificationEmailEventSubscriptionQuotaReset: {
+		Event:        NotificationEmailEventSubscriptionQuotaReset,
+		Label:        "Subscription quota reset",
+		Description:  "Sent when an administrator manually resets one or more subscription quota windows.",
+		Category:     "subscription",
+		Optional:     false,
+		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...), "subscription_group", "quota_reset_windows", "quota_reset_time"),
 	},
 	NotificationEmailEventSubscriptionExpiryReminder: {
 		Event:        NotificationEmailEventSubscriptionExpiryReminder,
@@ -1234,6 +1246,26 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 <p>您的 <strong>{{subscription_group}}</strong> 订阅已成功开通，有效期 <strong>{{subscription_days}}</strong> 天。</p>
 <p>到期时间：<strong>{{expiry_time}}</strong></p>
 <p>订单号：{{order_id}}</p>`),
+		},
+	},
+	NotificationEmailEventSubscriptionQuotaReset: {
+		notificationEmailDefaultLocale: {
+			Subject: "[{{site_name}}] Your subscription quota was reset",
+			HTML: notificationEmailCard("#2563eb", "Subscription quota reset", `
+<p>Hello {{recipient_name}},</p>
+<p>An administrator reset the following quota window(s) for your <strong>{{subscription_group}}</strong> subscription:</p>
+<p><strong>{{quota_reset_windows}}</strong></p>
+<p>Reset time: <strong>{{quota_reset_time}}</strong></p>
+<p>You can continue using the service now.</p>`),
+		},
+		notificationEmailLocaleChinese: {
+			Subject: "[{{site_name}}] 你的订阅额度已重置",
+			HTML: notificationEmailCard("#2563eb", "订阅额度已重置", `
+<p>{{recipient_name}}，您好：</p>
+<p>管理员已为你的 <strong>{{subscription_group}}</strong> 订阅重置以下额度周期：</p>
+<p><strong>{{quota_reset_windows}}</strong></p>
+<p>重置时间：<strong>{{quota_reset_time}}</strong></p>
+<p>你现在可以继续使用服务。</p>`),
 		},
 	},
 	NotificationEmailEventSubscriptionExpiryReminder: {

@@ -718,6 +718,7 @@ export default {
       resetQuota: 'Reset Quota',
       resetQuotaTitle: 'Reset Usage Quota',
       resetQuotaPickerHint: 'Choose the quota window to clear. Only the selected window will be affected.',
+      notifyUserOnQuotaReset: 'Notify the user by email',
       resetQuotaConfirm: "Reset the daily, weekly, and monthly usage quota for '{user}'? Usage will be zeroed and windows restarted from today.",
       resetDaily: 'Reset Daily',
       resetWeekly: 'Reset Weekly',

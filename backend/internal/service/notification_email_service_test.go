@@ -140,6 +140,7 @@ func TestNotificationEmailAdditionalEventsAreListedAndPreviewable(t *testing.T) 
 		placeholder string
 	}{
 		{NotificationEmailEventNotificationEmailVerifyCode, "verification_code"},
+		{NotificationEmailEventSubscriptionQuotaReset, "quota_reset_windows"},
 		{NotificationEmailEventAccountQuotaAlert, "account_name"},
 		{NotificationEmailEventContentModerationViolation, "moderation_category"},
 		{NotificationEmailEventContentModerationDisabled, "violation_count"},

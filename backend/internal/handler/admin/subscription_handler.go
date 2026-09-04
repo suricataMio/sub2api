@@ -2,7 +2,10 @@ package admin
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -28,13 +31,15 @@ func toResponsePagination(p *pagination.PaginationResult) *response.PaginationRe
 
 // SubscriptionHandler handles admin subscription management
 type SubscriptionHandler struct {
-	subscriptionService *service.SubscriptionService
+	subscriptionService      *service.SubscriptionService
+	notificationEmailService *service.NotificationEmailService
 }
 
-// NewSubscriptionHandler creates a new admin subscription handler
-func NewSubscriptionHandler(subscriptionService *service.SubscriptionService) *SubscriptionHandler {
+// NewSubscriptionHandler creates a new admin subscription handler.
+func NewSubscriptionHandler(subscriptionService *service.SubscriptionService, notificationEmailService *service.NotificationEmailService) *SubscriptionHandler {
 	return &SubscriptionHandler{
-		subscriptionService: subscriptionService,
+		subscriptionService:      subscriptionService,
+		notificationEmailService: notificationEmailService,
 	}
 }
 
@@ -219,9 +224,10 @@ func (h *SubscriptionHandler) Extend(c *gin.Context) {
 
 // ResetSubscriptionQuotaRequest represents the reset quota request
 type ResetSubscriptionQuotaRequest struct {
-	Daily   bool `json:"daily"`
-	Weekly  bool `json:"weekly"`
-	Monthly bool `json:"monthly"`
+	Daily      bool  `json:"daily"`
+	Weekly     bool  `json:"weekly"`
+	Monthly    bool  `json:"monthly"`
+	NotifyUser *bool `json:"notify_user,omitempty"` // nil defaults to true for administrator-initiated resets
 }
 
 // ResetQuota resets daily, weekly, and/or monthly usage for a subscription.
@@ -246,7 +252,76 @@ func (h *SubscriptionHandler) ResetQuota(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	// A notification failure must never make an already-successful quota reset fail.
+	if req.NotifyUser == nil || *req.NotifyUser {
+		h.dispatchQuotaResetNotification(sub, req.Daily, req.Weekly, req.Monthly)
+	}
 	response.Success(c, dto.UserSubscriptionFromServiceAdmin(sub))
+}
+
+func (h *SubscriptionHandler) dispatchQuotaResetNotification(sub *service.UserSubscription, daily, weekly, monthly bool) {
+	if h == nil || h.notificationEmailService == nil || sub == nil || sub.User == nil || strings.TrimSpace(sub.User.Email) == "" {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		locale := h.notificationEmailService.ResolveRecipientLocale(ctx, sub.UserID, sub.User.Email)
+		if err := h.notificationEmailService.Send(ctx, service.NotificationEmailSendInput{
+			Event:          service.NotificationEmailEventSubscriptionQuotaReset,
+			Locale:         locale,
+			RecipientEmail: sub.User.Email,
+			RecipientName:  firstNonEmpty(sub.User.Username, sub.User.Email),
+			UserID:         sub.UserID,
+			SourceType:     "user_subscription_quota_reset",
+			SourceID:       strconv.FormatInt(sub.ID, 10),
+			ReminderKey:    time.Now().UTC().Format(time.RFC3339Nano),
+			Variables: map[string]string{
+				"subscription_group":  firstNonEmpty(groupName(sub), "Subscription"),
+				"quota_reset_windows": quotaResetWindowLabel(locale, daily, weekly, monthly),
+				"quota_reset_time":    time.Now().Format("2006-01-02 15:04"),
+			},
+		}); err != nil {
+			slog.Warn("subscription quota reset notification email failed", "subscription_id", sub.ID, "user_id", sub.UserID, "err", err.Error())
+		}
+	}()
+}
+
+func groupName(sub *service.UserSubscription) string {
+	if sub != nil && sub.Group != nil {
+		return sub.Group.Name
+	}
+	return ""
+}
+
+func quotaResetWindowLabel(locale string, daily, weekly, monthly bool) string {
+	chinese := strings.HasPrefix(strings.ToLower(locale), "zh")
+	windows := make([]string, 0, 3)
+	if daily {
+		if chinese {
+			windows = append(windows, "每日额度")
+		} else {
+			windows = append(windows, "Daily quota")
+		}
+	}
+	if weekly {
+		if chinese {
+			windows = append(windows, "每周额度")
+		} else {
+			windows = append(windows, "Weekly quota")
+		}
+	}
+	if monthly {
+		if chinese {
+			windows = append(windows, "每月额度")
+		} else {
+			windows = append(windows, "Monthly quota")
+		}
+	}
+	if chinese {
+		return strings.Join(windows, "、")
+	}
+	return strings.Join(windows, ", ")
 }
 
 // Revoke handles revoking a subscription.
